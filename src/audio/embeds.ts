@@ -46,30 +46,31 @@ function sourceName(url: string): string {
   return host;
 }
 
-/** Bottom line: the requester's avatar sits right before their name. Discord only allows the icon at the start. */
-function requesterFooter(track: Track) {
-  const text = `Requested by ${track.requestedBy.username}`;
+/**
+ * Bottom line: "(avatar) Requested by alice · 3:45 · YouTube". Discord only allows the icon at the start
+ * of the footer, so the name comes first to keep the avatar next to it.
+ */
+function requesterFooter(track: Track, details: string[]) {
+  const text = [`Requested by ${track.requestedBy.username}`, ...details].join(' · ');
   return track.requestedBy.avatarUrl ? { text, iconURL: track.requestedBy.avatarUrl } : { text };
 }
 
 /**
  * One track, thumbnail on the right:
- *   Now playing                          <- small top line
- *   GTA V Radio [...] Gimme More         <- big linked title
- *   4:35 · YouTube · Position 2 in queue
- *   (avatar) Requested by alice          <- small footer
+ *   Now playing                                                  <- small top line
+ *   GTA V Radio [...] Gimme More                                 <- big linked title
+ *   (avatar) Requested by alice · 4:35 · YouTube · Position 2 in queue   <- small footer
  */
 export function trackEmbed(track: Track, position: number): EmbedBuilder {
   const playing = position === 0;
-  const details = [`**${formatDuration(track.duration)}**`, sourceName(track.url)];
+  const details = [formatDuration(track.duration), sourceName(track.url)];
   if (!playing) details.push(`Position ${position} in queue`);
   const embed = new EmbedBuilder()
     .setColor(playing ? COLOR_PLAYING : COLOR_QUEUED)
     .setAuthor({ name: playing ? 'Now playing' : 'Added to queue' })
     .setTitle(track.title.slice(0, 256)) // Titles are plain text: brackets and * show as-is.
     .setURL(track.url)
-    .setDescription(details.join(' · '))
-    .setFooter(requesterFooter(track));
+    .setFooter(requesterFooter(track, details));
   if (track.thumbnail) embed.setThumbnail(track.thumbnail);
   return embed;
 }
@@ -87,16 +88,15 @@ export interface PlaylistSummary {
  * Same layout for a playlist. `position` is where its first track landed (0 = playing now):
  *   Added playlist
  *   Non-Stop-Pop FM - GTA V Radio        <- big linked title
- *   34 tracks, from #3 of 36 · 2:25:28 · YouTube
  *   Now playing: [Gimme More](url) · 4:35
- *   (avatar) Requested by alice
+ *   (avatar) Requested by alice · 34 tracks, from #3 of 36 · 2:25:28 · YouTube
  */
 export function playlistEmbed(playlist: PlaylistSummary, tracks: Track[], position: number): EmbedBuilder {
   const first = tracks[0]!;
   let count = `${tracks.length} track${tracks.length === 1 ? '' : 's'}`;
   if (playlist.startAt && playlist.startAt > 1) count += `, from #${playlist.startAt} of ${playlist.total}`;
   else if (playlist.total > tracks.length) count += ` of ${playlist.total}`;
-  const details = [`**${count}**`];
+  const details = [count];
   // SoundCloud set listings have no durations until each track is looked up, so only show a total when all are known.
   if (tracks.every((t) => t.duration !== undefined)) {
     details.push(formatDuration(tracks.reduce((sum, t) => sum + (t.duration ?? 0), 0)));
@@ -108,10 +108,8 @@ export function playlistEmbed(playlist: PlaylistSummary, tracks: Track[], positi
     .setAuthor({ name: 'Added playlist' })
     .setTitle(playlist.title.slice(0, 256))
     .setURL(playlist.url)
-    .setDescription(
-      [details.join(' · '), `${start}: ${link(first.title, first.url)} · ${formatDuration(first.duration)}`].join('\n'),
-    )
-    .setFooter(requesterFooter(first));
+    .setDescription(`${start}: ${link(first.title, first.url)} · ${formatDuration(first.duration)}`)
+    .setFooter(requesterFooter(first, details));
   if (first.thumbnail) embed.setThumbnail(first.thumbnail);
   return embed;
 }
