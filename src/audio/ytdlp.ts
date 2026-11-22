@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import type { Readable } from 'node:stream';
 import { promisify } from 'node:util';
 import { createLogger } from '../logger.js';
+import { cookieArgs, hasYoutubeCookies } from './cookies.js';
 
 const execFileAsync = promisify(execFile);
 const log = createLogger('yt-dlp');
@@ -96,10 +97,18 @@ function titleFromUrl(url: string): string {
 }
 
 async function ytdlpJson(args: string[]): Promise<YtdlpJson> {
-  const { stdout } = await execFileAsync('yt-dlp', ['--no-warnings', '-f', FORMAT, ...args], {
-    timeout: 60_000,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  // Own folder per run, for the cookies copy (and anything else yt-dlp writes to its working directory).
+  const workDir = mkdtempSync(join(tmpdir(), 'potato-'));
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync('yt-dlp', ['--no-warnings', '-f', FORMAT, ...cookieArgs(workDir), ...args], {
+      cwd: workDir,
+      timeout: 60_000,
+      maxBuffer: 64 * 1024 * 1024,
+    }));
+  } finally {
+    rmSync(workDir, { recursive: true, force: true });
+  }
   const line = stdout.trim().split('\n')[0];
   if (!line) throw new Error('yt-dlp returned nothing');
   return JSON.parse(line) as YtdlpJson;
@@ -216,6 +225,12 @@ export async function resolveQuery(query: string, { wholePlaylist = false } = {}
 export function errorMessage(err: unknown): string {
   const stderr = (err as { stderr?: string })?.stderr;
   const text = stderr?.trim() || (err instanceof Error ? err.message : String(err));
+  // YouTube's bot check: it flags datacenter IPs and wants a signed-in session.
+  if (/Sign in to confirm you.re not a bot/i.test(text)) {
+    return hasYoutubeCookies
+      ? "YouTube is blocking the bot's server even with the configured cookies. They've probably expired: export new ones (see the README)."
+      : "YouTube is blocking the bot's server and asks to sign in. The bot needs YouTube cookies (YOUTUBE_COOKIES, see the README).";
+  }
   const line = text.split('\n').find((l) => l.includes('ERROR')) ?? text;
   return line
     .replace(/^ERROR:\s*/, '')
@@ -239,10 +254,14 @@ export function createAudioStream(track: TrackInfo): AudioStream {
   const infoFile = join(workDir, 'info.json');
   writeFileSync(infoFile, track.info);
 
-  const ytdlp = spawn('yt-dlp', ['-f', FORMAT, '-o', '-', '--quiet', '--no-warnings', '--load-info-json', infoFile], {
-    cwd: workDir,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const ytdlp = spawn(
+    'yt-dlp',
+    ['-f', FORMAT, '-o', '-', '--quiet', '--no-warnings', ...cookieArgs(workDir), '--load-info-json', infoFile],
+    {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
   const ffmpeg = spawn(
     'ffmpeg',
     ['-loglevel', 'error', '-i', 'pipe:0', '-vn', '-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1'],

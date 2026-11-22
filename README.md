@@ -111,3 +111,21 @@ Rerun the last command whenever commands are added or changed. Other things to k
 - **yt-dlp updates:** each build fetches the checksum file of the latest yt-dlp release and downloads yt-dlp again when it changed. If YouTube playback breaks, redeploy to pick up a fix.
 - **During a deploy** the old and new bot run side by side for about 3 seconds, so a command sent right then may get two replies. The music queue lives in memory and is cleared by a deploy.
 - **One token, one bot:** with the same token locally and on the server, both answer every command. Stop the local bot, or use a second Discord application for development.
+
+### YouTube on a server: cookies
+
+YouTube blocks most VPS and datacenter IPs with "Sign in to confirm you're not a bot". The fix is to give yt-dlp the cookies of a signed-in YouTube session:
+
+1. **Use a separate Google account**, not your main one: YouTube can restrict accounts used by bots.
+2. Open a **private/incognito window**, sign in to YouTube with that account, then go to `https://www.youtube.com/robots.txt` in the same tab.
+3. Export the cookies of that tab as `cookies.txt` (Netscape format) with an extension such as "Get cookies.txt LOCALLY", then **close the private window without signing out**. The session stays valid as long as it isn't used in a browser again.
+4. Store the file as a secret (the bot only keeps youtube.com and google.com cookies from it):
+
+```bash
+base64 -i cookies.txt | tr -d '\n' | pbcopy    # copy it, then paste at the hidden prompt
+stalagmite env set <server> potato-bot YOUTUBE_COOKIES
+stalagmite deploy <server> potato-bot
+rm cookies.txt
+```
+
+The logs show `Using N YouTube cookies for yt-dlp` at startup. Cookies expire after a while (weeks to months): when the error comes back mentioning the cookies, export new ones the same way. SoundCloud doesn't need any of this.
