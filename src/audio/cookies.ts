@@ -8,18 +8,48 @@ const log = createLogger('cookies');
 const ALLOWED_DOMAIN = /(^|\.)(youtube|google)\.com$/;
 
 /**
- * YouTube cookies for yt-dlp, from YOUTUBE_COOKIES: a Netscape cookies.txt file, base64-encoded so it fits
- * in one env var (`base64 -i cookies.txt`). YouTube asks datacenter IPs (VPS) to sign in; these cookies do.
+ * A copied `Cookie` request header ("SID=…; HSID=…; …", from DevTools → Network on youtube.com) as
+ * cookies.txt lines. The header has no domain/expiry, so they're set for .youtube.com and a year ahead.
+ */
+function headerToNetscape(header: string): string {
+  const expires = Math.floor(Date.now() / 1000) + 365 * 24 * 3600;
+  const lines: string[] = [];
+  for (const part of header.split(';')) {
+    const pair = part.trim();
+    const eq = pair.indexOf('=');
+    if (eq <= 0) continue;
+    lines.push(['.youtube.com', 'TRUE', '/', 'TRUE', String(expires), pair.slice(0, eq), pair.slice(eq + 1)].join('\t'));
+  }
+  return lines.join('\n');
+}
+
+/**
+ * YouTube cookies for yt-dlp, from YOUTUBE_COOKIES. YouTube asks datacenter IPs (VPS) to sign in; these cookies do.
+ * Accepts, on one line:
+ * - the `Cookie` request header copied from DevTools (optionally with its "cookie:" prefix)
+ * - a Netscape cookies.txt file, base64-encoded (`base64 -i cookies.txt`)
  */
 function loadCookies(): string | undefined {
-  const raw = process.env.YOUTUBE_COOKIES?.trim();
+  const raw = process.env.YOUTUBE_COOKIES?.trim().replace(/^cookie:\s*/i, '');
   if (!raw) return undefined;
 
-  const text = raw.startsWith('#') ? raw : Buffer.from(raw, 'base64').toString('utf8');
-  const lines = text.split(/\r?\n/);
+  let text: string;
+  let format: string;
+  if (raw.startsWith('#') || raw.includes('\t')) {
+    text = raw;
+    format = 'cookies.txt';
+  } else if (/=[^=]/.test(raw)) {
+    // "name=value": base64 only has "=" as trailing padding, so an "=" followed by anything else is a header.
+    text = headerToNetscape(raw);
+    format = 'Cookie header';
+  } else {
+    text = Buffer.from(raw, 'base64').toString('utf8');
+    format = 'base64 cookies.txt';
+  }
+
   const kept: string[] = ['# Netscape HTTP Cookie File'];
   let dropped = 0;
-  for (const line of lines) {
+  for (const line of text.split(/\r?\n/)) {
     if (!line.trim()) continue;
     // "#HttpOnly_.youtube.com" lines are cookies; other "#" lines are comments.
     const isCookie = !line.startsWith('#') || line.startsWith('#HttpOnly_');
@@ -31,10 +61,11 @@ function loadCookies(): string | undefined {
   }
 
   if (kept.length === 1) {
-    log.warn('YOUTUBE_COOKIES is set but has no youtube.com cookies (expected a base64 Netscape cookies.txt): ignoring it');
+    log.warn(`YOUTUBE_COOKIES is set but has no youtube.com cookies (read as ${format}): ignoring it`);
     return undefined;
   }
-  log.info(`Using ${kept.length - 1} YouTube cookies for yt-dlp${dropped ? ` (${dropped} from other sites ignored)` : ''}`);
+  const ignored = dropped ? ` (${dropped} from other sites ignored)` : '';
+  log.info(`Using ${kept.length - 1} YouTube cookies for yt-dlp, from a ${format}${ignored}`);
   return `${kept.join('\n')}\n`;
 }
 

@@ -118,24 +118,25 @@ YouTube blocks most VPS and datacenter IPs with "Sign in to confirm you're not a
 
 **1. Prepare a Google account.** Use a separate account, not your main one: YouTube can restrict accounts used by bots. Sign in to YouTube with it once in a normal window and accept anything it asks.
 
-**2. Export the cookies** (Chrome; other browsers are similar):
+**2. Copy the cookies** (Chrome; other browsers are similar):
 
-1. Install the extension "Get cookies.txt LOCALLY" and allow it in incognito (Extensions → Details → *Allow in Incognito*).
-2. Open an **incognito window**, go to `https://www.youtube.com` and sign in with that account.
-3. In the **same tab**, go to `https://www.youtube.com/robots.txt`.
-4. Click the extension, keep the format on *Netscape*, and click *Export*. You get `www.youtube.com_cookies.txt` (or `cookies.txt`) in Downloads.
+1. Open an **incognito window**, go to `https://www.youtube.com` and sign in with that account.
+2. In the **same tab**, go to `https://www.youtube.com/robots.txt`.
+3. Open DevTools (⌥⌘I), go to the **Network** tab and reload the page.
+4. Click the `robots.txt` request → **Headers** → **Request Headers**, right-click **cookie** → *Copy value*. It looks like `SID=…; HSID=…; SSID=…; __Secure-3PSID=…; LOGIN_INFO=…`. (A JavaScript snippet can't do this: the sign-in cookies are HttpOnly and hidden from `document.cookie`.)
 5. **Close the incognito window without signing out.** The session stays valid as long as it isn't used in a browser again.
 
-**3. Send them to the server and redeploy** (from the folder where the file is):
+**3. Send them to the server and redeploy**, right after copying (the value is still in your clipboard):
 
 ```bash
-stalagmite env set <server> potato-bot YOUTUBE_COOKIES="$(base64 -i www.youtube.com_cookies.txt | tr -d '\n')"
+stalagmite env set <server> potato-bot YOUTUBE_COOKIES="$(pbpaste)"
 stalagmite deploy <server> potato-bot
-rm www.youtube.com_cookies.txt
 ```
 
-The value goes straight from the file into the server's env file (it doesn't end up in your shell history). Only the youtube.com and google.com cookies in it are used.
+The value goes straight from the clipboard to the server's env file and doesn't end up in your shell history. Copy something else afterwards to clear the clipboard.
 
-**4. Check.** `stalagmite logs <server> potato-bot -n 50` should show `Using N YouTube cookies for yt-dlp` after the deploy. Then `/play` a YouTube link in Discord.
+*Alternative:* a `cookies.txt` exported with an extension like "Get cookies.txt LOCALLY" (same incognito steps) also works, base64-encoded: `YOUTUBE_COOKIES="$(base64 -i www.youtube.com_cookies.txt | tr -d '\n')"`. Only youtube.com and google.com cookies are used from it.
+
+**4. Check.** `stalagmite logs <server> potato-bot -n 50` should show `Using N YouTube cookies for yt-dlp, from a Cookie header` after the deploy. Then `/play` a YouTube link in Discord.
 
 **When they expire** (weeks to months), `/play` replies that YouTube is blocking the server even with the cookies: do steps 2 and 3 again with the same account.
