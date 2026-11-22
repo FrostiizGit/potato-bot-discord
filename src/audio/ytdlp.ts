@@ -227,9 +227,9 @@ export function errorMessage(err: unknown): string {
   const text = stderr?.trim() || (err instanceof Error ? err.message : String(err));
   // YouTube's bot check: it flags datacenter IPs and wants a signed-in session.
   if (/Sign in to confirm you.re not a bot/i.test(text)) {
-    return hasYoutubeCookies
-      ? "YouTube is blocking the bot's server even with the configured cookies. They've probably expired: export new ones (see the README)."
-      : "YouTube is blocking the bot's server and asks to sign in. The bot needs YouTube cookies (YOUTUBE_COOKIES, see the README).";
+    return hasYoutubeCookies()
+      ? "YouTube is blocking the bot's server even with its cookies, which have probably expired. An admin can upload fresh ones with `/youtube-cookies`."
+      : "YouTube is blocking the bot's server and asks to sign in. An admin needs to upload YouTube cookies with `/youtube-cookies`.";
   }
   const line = text.split('\n').find((l) => l.includes('ERROR')) ?? text;
   return line

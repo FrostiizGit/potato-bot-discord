@@ -9,3 +9,11 @@ export const users = pgTable('users', {
 });
 
 export type User = typeof users.$inferSelect;
+
+/** Bot-wide settings changed from Discord (e.g. YouTube cookies), one row per key. */
+export const botSettings = pgTable('bot_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});

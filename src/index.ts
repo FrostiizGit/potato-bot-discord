@@ -1,7 +1,9 @@
 import { Client, Events, GatewayIntentBits, MessageFlags, type CommandInteractionOption } from 'discord.js';
+import { COOKIES_SETTING, parseCookies, setYoutubeCookies } from './audio/cookies.js';
 import { destroyAllPlayers } from './audio/player.js';
 import { commands } from './commands/index.js';
 import { pool, runMigrations } from './db/index.js';
+import { getSetting } from './db/settings.js';
 import { ensureUser } from './db/users.js';
 import { env } from './env.js';
 import { startHealthServer } from './health.js';
@@ -73,4 +75,17 @@ const health = startHealthServer(env.PORT, () => client.isReady());
 
 await runMigrations();
 log.info('Database ready');
+
+const savedCookies = await getSetting(COOKIES_SETTING);
+if (savedCookies) {
+  try {
+    const { text, count } = parseCookies(savedCookies);
+    setYoutubeCookies(text);
+    log.info(`Using ${count} saved YouTube cookies`);
+  } catch (err) {
+    log.warn('Saved YouTube cookies are unreadable, ignoring them:', err);
+  }
+} else {
+  log.info('No YouTube cookies saved (only needed if YouTube asks the server to sign in: /youtube-cookies)');
+}
 await client.login(env.DISCORD_TOKEN);
