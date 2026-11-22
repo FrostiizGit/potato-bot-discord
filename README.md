@@ -114,18 +114,28 @@ Rerun the last command whenever commands are added or changed. Other things to k
 
 ### YouTube on a server: cookies
 
-YouTube blocks most VPS and datacenter IPs with "Sign in to confirm you're not a bot". The fix is to give yt-dlp the cookies of a signed-in YouTube session:
+YouTube blocks most VPS and datacenter IPs with "Sign in to confirm you're not a bot", and logging in with OAuth no longer works with yt-dlp. The bot gets past it with the cookies of a signed-in YouTube session, given in the `YOUTUBE_COOKIES` variable. SoundCloud doesn't need any of this.
 
-1. **Use a separate Google account**, not your main one: YouTube can restrict accounts used by bots.
-2. Open a **private/incognito window**, sign in to YouTube with that account, then go to `https://www.youtube.com/robots.txt` in the same tab.
-3. Export the cookies of that tab as `cookies.txt` (Netscape format) with an extension such as "Get cookies.txt LOCALLY", then **close the private window without signing out**. The session stays valid as long as it isn't used in a browser again.
-4. Store the file as a secret (the bot only keeps youtube.com and google.com cookies from it):
+**1. Prepare a Google account.** Use a separate account, not your main one: YouTube can restrict accounts used by bots. Sign in to YouTube with it once in a normal window and accept anything it asks.
+
+**2. Export the cookies** (Chrome; other browsers are similar):
+
+1. Install the extension "Get cookies.txt LOCALLY" and allow it in incognito (Extensions → Details → *Allow in Incognito*).
+2. Open an **incognito window**, go to `https://www.youtube.com` and sign in with that account.
+3. In the **same tab**, go to `https://www.youtube.com/robots.txt`.
+4. Click the extension, keep the format on *Netscape*, and click *Export*. You get `www.youtube.com_cookies.txt` (or `cookies.txt`) in Downloads.
+5. **Close the incognito window without signing out.** The session stays valid as long as it isn't used in a browser again.
+
+**3. Send them to the server and redeploy** (from the folder where the file is):
 
 ```bash
-base64 -i cookies.txt | tr -d '\n' | pbcopy    # copy it, then paste at the hidden prompt
-stalagmite env set <server> potato-bot YOUTUBE_COOKIES
+stalagmite env set <server> potato-bot YOUTUBE_COOKIES="$(base64 -i www.youtube.com_cookies.txt | tr -d '\n')"
 stalagmite deploy <server> potato-bot
-rm cookies.txt
+rm www.youtube.com_cookies.txt
 ```
 
-The logs show `Using N YouTube cookies for yt-dlp` at startup. Cookies expire after a while (weeks to months): when the error comes back mentioning the cookies, export new ones the same way. SoundCloud doesn't need any of this.
+The value goes straight from the file into the server's env file (it doesn't end up in your shell history). Only the youtube.com and google.com cookies in it are used.
+
+**4. Check.** `stalagmite logs <server> potato-bot -n 50` should show `Using N YouTube cookies for yt-dlp` after the deploy. Then `/play` a YouTube link in Discord.
+
+**When they expire** (weeks to months), `/play` replies that YouTube is blocking the server even with the cookies: do steps 2 and 3 again with the same account.
