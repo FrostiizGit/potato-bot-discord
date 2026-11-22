@@ -23,6 +23,7 @@
   "homepage": "https://github.com/FrostiizGit/potato-bot-discord#readme",
   "private": true,
   "dependencies": {
+    "@discordjs/opus": "^0.11.0",
     "@discordjs/voice": "^0.19.2",
     "discord.js": "^14.28.1",
     "drizzle-orm": "^0.45.4",
@@ -40,6 +41,7 @@
   "allowScripts": {
     "esbuild@0.18.20": true,
     "esbuild@0.25.12": true,
-    "esbuild@0.28.2": true
+    "esbuild@0.28.2": true,
+    "@discordjs/opus@0.11.0": true
   }
 }

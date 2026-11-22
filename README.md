@@ -26,6 +26,10 @@ npm run dev                 # runs the bot and restarts on file changes
 
 Database migrations run automatically when the bot starts.
 
+## Logs
+
+Every command is logged with the user and its options, and the player logs joins, tracks starting (with the start delay), finishing, skips, volume changes and leaving. Set `LOG_LEVEL=debug` in `.env` for lookup timings and more detail, or `warn` for less.
+
 ## Commands
 
 | Command | What it does |
@@ -33,10 +37,17 @@ Database migrations run automatically when the bot starts.
 | `/ping` | Check the bot is alive |
 | `/play <query>` | Play a URL, or search YouTube for the text |
 | `/skip` | Skip the current track |
-| `/queue` | Show the current track and what's next |
+| `/queue` | Show the current track with progress, what's next, and the volume |
+| `/volume [percent]` | Show the volume, or set it from 0 to 150 (100 = original level) |
 | `/stop` | Clear the queue and leave the voice channel |
 
-The bot leaves the voice channel after 5 minutes with nothing playing.
+The bot leaves the voice channel after 5 minutes with nothing playing. Volume lasts until it leaves.
+
+### How playback works
+
+`/play` runs one yt-dlp lookup that picks an audio-only format (Opus when available) and keeps a trimmed copy of the result. When the track plays, yt-dlp reuses it instead of extracting again, ffmpeg decodes to raw PCM, and `@discordjs/voice` applies the volume and encodes Opus.
+
+YouTube makes some stream URLs usable only a few seconds after they're issued, and yt-dlp waits for that ("Sleeping N seconds as required by the site"). So the first track in an empty queue can take a few seconds to start; queued tracks were looked up earlier and usually start in under a second.
 
 ## Scripts
 
