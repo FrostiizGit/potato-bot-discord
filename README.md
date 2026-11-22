@@ -111,3 +111,32 @@ Rerun the last command whenever commands are added or changed. Other things to k
 - **yt-dlp updates:** each build fetches the checksum file of the latest yt-dlp release and downloads yt-dlp again when it changed. If YouTube playback breaks, redeploy to pick up a fix.
 - **During a deploy** the old and new bot run side by side for about 3 seconds, so a command sent right then may get two replies. The music queue lives in memory and is cleared by a deploy.
 - **One token, one bot:** with the same token locally and on the server, both answer every command. Stop the local bot, or use a second Discord application for development.
+
+### YouTube on a server: cookies
+
+YouTube blocks most VPS and datacenter IPs with "Sign in to confirm you're not a bot", and logging in with OAuth no longer works with yt-dlp. The bot gets past it with the cookies of a signed-in YouTube session, given in the `YOUTUBE_COOKIES` variable. SoundCloud doesn't need any of this.
+
+**1. Prepare a Google account.** Use a separate account, not your main one: YouTube can restrict accounts used by bots. Sign in to YouTube with it once in a normal window and accept anything it asks.
+
+**2. Copy the cookies** (Chrome; other browsers are similar):
+
+1. Open an **incognito window**, go to `https://www.youtube.com` and sign in with that account.
+2. In the **same tab**, go to `https://www.youtube.com/robots.txt`.
+3. Open DevTools (⌥⌘I), go to the **Network** tab and reload the page.
+4. Click the `robots.txt` request → **Headers** → **Request Headers**, right-click **cookie** → *Copy value*. It looks like `SID=…; HSID=…; SSID=…; __Secure-3PSID=…; LOGIN_INFO=…`. (A JavaScript snippet can't do this: the sign-in cookies are HttpOnly and hidden from `document.cookie`.)
+5. **Close the incognito window without signing out.** The session stays valid as long as it isn't used in a browser again.
+
+**3. Send them to the server and redeploy**, right after copying (the value is still in your clipboard):
+
+```bash
+stalagmite env set <server> potato-bot YOUTUBE_COOKIES="$(pbpaste)"
+stalagmite deploy <server> potato-bot
+```
+
+The value goes straight from the clipboard to the server's env file and doesn't end up in your shell history. Copy something else afterwards to clear the clipboard.
+
+*Alternative:* a `cookies.txt` exported with an extension like "Get cookies.txt LOCALLY" (same incognito steps) also works, base64-encoded: `YOUTUBE_COOKIES="$(base64 -i www.youtube.com_cookies.txt | tr -d '\n')"`. Only youtube.com and google.com cookies are used from it.
+
+**4. Check.** `stalagmite logs <server> potato-bot -n 50` should show `Using N YouTube cookies for yt-dlp, from a Cookie header` after the deploy. Then `/play` a YouTube link in Discord.
+
+**When they expire** (weeks to months), `/play` replies that YouTube is blocking the server even with the cookies: do steps 2 and 3 again with the same account.
