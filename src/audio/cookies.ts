@@ -1,65 +1,54 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createLogger } from '../logger.js';
 
-/**
- * YouTube cookies for yt-dlp. YouTube asks datacenter IPs (VPS) to sign in ("Sign in to confirm you're not a
- * bot") and OAuth login no longer works with yt-dlp, so a signed-in session's cookies are the way through.
- * Uploaded with /youtube-cookies, stored in bot_settings, loaded at startup.
- */
+const log = createLogger('cookies');
 
-/** bot_settings key. */
-export const COOKIES_SETTING = 'youtube_cookies';
-
-/** Only these cookies are kept, so a browser export with other sites in it never reaches yt-dlp or the database. */
+/** Only these cookies are kept, so a browser export with other sites in it never reaches yt-dlp. */
 const ALLOWED_DOMAIN = /(^|\.)(youtube|google)\.com$/;
 
-export interface ParsedCookies {
-  /** Netscape cookies.txt with only YouTube/Google cookies. */
-  text: string;
-  count: number;
-  /** Cookies from other sites that were left out. */
-  dropped: number;
-}
+/**
+ * YouTube cookies for yt-dlp, from YOUTUBE_COOKIES: a Netscape cookies.txt file, base64-encoded so it fits
+ * in one env var (`base64 -i cookies.txt`). YouTube asks datacenter IPs (VPS) to sign in; these cookies do.
+ */
+function loadCookies(): string | undefined {
+  const raw = process.env.YOUTUBE_COOKIES?.trim();
+  if (!raw) return undefined;
 
-/** Filters a Netscape cookies.txt down to YouTube/Google cookies. Throws if none are left. */
-export function parseCookies(input: string): ParsedCookies {
+  const text = raw.startsWith('#') ? raw : Buffer.from(raw, 'base64').toString('utf8');
+  const lines = text.split(/\r?\n/);
   const kept: string[] = ['# Netscape HTTP Cookie File'];
   let dropped = 0;
-  for (const line of input.split(/\r?\n/)) {
+  for (const line of lines) {
     if (!line.trim()) continue;
     // "#HttpOnly_.youtube.com" lines are cookies; other "#" lines are comments.
-    if (line.startsWith('#') && !line.startsWith('#HttpOnly_')) continue;
+    const isCookie = !line.startsWith('#') || line.startsWith('#HttpOnly_');
+    if (!isCookie) continue;
     const fields = line.split('\t');
     const domain = fields[0]?.replace(/^#HttpOnly_/, '').replace(/^\./, '') ?? '';
     if (fields.length >= 7 && ALLOWED_DOMAIN.test(domain)) kept.push(line);
     else dropped++;
   }
+
   if (kept.length === 1) {
-    throw new Error('No youtube.com cookies found. Export them as a Netscape cookies.txt file.');
+    log.warn('YOUTUBE_COOKIES is set but has no youtube.com cookies (expected a base64 Netscape cookies.txt): ignoring it');
+    return undefined;
   }
-  return { text: `${kept.join('\n')}\n`, count: kept.length - 1, dropped };
+  log.info(`Using ${kept.length - 1} YouTube cookies for yt-dlp${dropped ? ` (${dropped} from other sites ignored)` : ''}`);
+  return `${kept.join('\n')}\n`;
 }
 
-let current: string | undefined;
+const cookies = loadCookies();
 
-/** Sets the cookies every following yt-dlp run uses (already parsed with parseCookies). Returns the previous ones. */
-export function setYoutubeCookies(text: string | undefined): string | undefined {
-  const previous = current;
-  current = text;
-  return previous;
-}
-
-export function hasYoutubeCookies(): boolean {
-  return current !== undefined;
-}
+export const hasYoutubeCookies = cookies !== undefined;
 
 /**
  * yt-dlp arguments for the cookies, written into `dir` (a folder only this yt-dlp run uses: yt-dlp saves the
- * cookie jar back when it exits, so runs must not share a file). Empty when no cookies are set.
+ * cookie jar back when it exits, so runs must not share a file). Empty when no cookies are configured.
  */
 export function cookieArgs(dir: string): string[] {
-  if (!current) return [];
+  if (!cookies) return [];
   const file = join(dir, 'cookies.txt');
-  writeFileSync(file, current, { mode: 0o600 });
+  writeFileSync(file, cookies, { mode: 0o600 });
   return ['--cookies', file];
 }

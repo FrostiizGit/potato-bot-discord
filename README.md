@@ -42,7 +42,6 @@ Every command is logged with the user and its options, and the player logs joins
 | `/queue` | Show the current track with progress, what's next, and the volume |
 | `/volume [percent]` | Show the volume, or set it from 0 to 150 (100 = original level) |
 | `/stop` | Clear the queue and leave the voice channel |
-| `/youtube-cookies <file>` | Admins: upload YouTube cookies when YouTube blocks the server (see below) |
 
 The bot leaves the voice channel after 5 minutes with nothing playing. Volume lasts until it leaves.
 
@@ -115,13 +114,18 @@ Rerun the last command whenever commands are added or changed. Other things to k
 
 ### YouTube on a server: cookies
 
-YouTube blocks most VPS and datacenter IPs with "Sign in to confirm you're not a bot", and logging in with OAuth no longer works with yt-dlp. The fix is the cookies of a signed-in YouTube session, uploaded from Discord:
+YouTube blocks most VPS and datacenter IPs with "Sign in to confirm you're not a bot". The fix is to give yt-dlp the cookies of a signed-in YouTube session:
 
 1. **Use a separate Google account**, not your main one: YouTube can restrict accounts used by bots.
 2. Open a **private/incognito window**, sign in to YouTube with that account, then go to `https://www.youtube.com/robots.txt` in the same tab.
 3. Export the cookies of that tab as `cookies.txt` (Netscape format) with an extension such as "Get cookies.txt LOCALLY", then **close the private window without signing out**. The session stays valid as long as it isn't used in a browser again.
-4. In Discord, run `/youtube-cookies` and attach the file, then delete `cookies.txt`.
+4. Store the file as a secret (the bot only keeps youtube.com and google.com cookies from it):
 
-The command is for members with *Manage Server* only and its replies are visible only to you. It keeps only the youtube.com and google.com cookies, tries a YouTube lookup with them, and saves them in the database (`bot_settings`) only if YouTube accepts them. No redeploy needed; they're loaded again at every start.
+```bash
+base64 -i cookies.txt | tr -d '\n' | pbcopy    # copy it, then paste at the hidden prompt
+stalagmite env set <server> potato-bot YOUTUBE_COOKIES
+stalagmite deploy <server> potato-bot
+rm cookies.txt
+```
 
-Cookies expire after a while (weeks to months). When they do, `/play` replies that YouTube is blocking the server and to upload fresh ones: repeat the steps above. SoundCloud doesn't need any of this.
+The logs show `Using N YouTube cookies for yt-dlp` at startup. Cookies expire after a while (weeks to months): when the error comes back mentioning the cookies, export new ones the same way. SoundCloud doesn't need any of this.
