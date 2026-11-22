@@ -13,7 +13,7 @@ Stack: TypeScript, discord.js, `@discordjs/voice`, yt-dlp + ffmpeg, Postgres wit
 ## Setup
 
 1. Create an application at https://discord.com/developers/applications, add a bot, and copy its token.
-2. Invite it to your server: OAuth2 → URL Generator, scopes `bot` and `applications.commands`, permissions *Connect*, *Speak* and *Send Messages*.
+2. Invite it to your server: OAuth2 → URL Generator, scopes `bot` and `applications.commands`, permissions *Connect*, *Speak*, *Send Messages* and *Embed Links*.
 3. Configure and start:
 
 ```bash
@@ -35,7 +35,8 @@ Every command is logged with the user and its options, and the player logs joins
 | Command | What it does |
 |---|---|
 | `/ping` | Check the bot is alive |
-| `/play <query>` | Play a URL, or search YouTube for the text |
+| `/play <query>` | Play a track or playlist URL (YouTube, SoundCloud, direct links, …), or search YouTube for the text |
+| `/playlist <url>` | Queue a whole playlist. Also takes a link to a video inside a playlist (`watch?v=…&list=…`) and starts at that video |
 | `/skip` | Skip the current track |
 | `/queue` | Show the current track with progress, what's next, and the volume |
 | `/volume [percent]` | Show the volume, or set it from 0 to 150 (100 = original level) |
@@ -45,9 +46,13 @@ The bot leaves the voice channel after 5 minutes with nothing playing. Volume la
 
 ### How playback works
 
+`/play` replies with a compact embed: "Now playing: <linked title>" with the thumbnail beside it, and a small footer with the requester's avatar, duration, requester and queue position. `/play` on a video link that belongs to a playlist plays only that video and suggests `/playlist`. When a queued track starts, the bot posts a "Now playing" embed in the channel where it was last asked to play.
+
 `/play` runs one yt-dlp lookup that picks an audio-only format (Opus when available) and keeps a trimmed copy of the result. When the track plays, yt-dlp reuses it instead of extracting again, ffmpeg decodes to raw PCM, and `@discordjs/voice` applies the volume and encodes Opus.
 
 YouTube makes some stream URLs usable only a few seconds after they're issued, and yt-dlp waits for that ("Sleeping N seconds as required by the site"). So the first track in an empty queue can take a few seconds to start; queued tracks were looked up earlier and usually start in under a second.
+
+Playlists (YouTube playlists, SoundCloud sets) are listed without looking up each track, up to 100 tracks, and only the first is looked up right away. While a track plays, the player looks up the next one in the background, so it's ready when its turn comes. Tracks that turn out unplayable (removed, private, DRM protected) are skipped with a message. SoundCloud set listings have no titles, so those tracks show their link name in `/queue` until they're looked up.
 
 ## Scripts
 
