@@ -4,6 +4,7 @@ import { commands } from './commands/index.js';
 import { pool, runMigrations } from './db/index.js';
 import { ensureUser } from './db/users.js';
 import { env } from './env.js';
+import { startHealthServer } from './health.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('bot');
@@ -57,6 +58,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 async function shutdown(signal: string) {
   log.info(`${signal} received, shutting down`);
+  // Deploys stop the old release with SIGTERM and kill it 10 s later: never hang past that.
+  setTimeout(() => process.exit(1), 8_000).unref();
+  health.close();
   destroyAllPlayers();
   await client.destroy();
   await pool.end();
@@ -64,6 +68,8 @@ async function shutdown(signal: string) {
 }
 process.once('SIGINT', () => void shutdown('SIGINT'));
 process.once('SIGTERM', () => void shutdown('SIGTERM'));
+
+const health = startHealthServer(env.PORT, () => client.isReady());
 
 await runMigrations();
 log.info('Database ready');

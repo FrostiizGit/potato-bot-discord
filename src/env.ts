@@ -5,6 +5,8 @@ const schema = z.object({
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_GUILD_ID: z.string().min(1),
   DATABASE_URL: z.string().url(),
+  /** Health check port (Stalagmite's --port). */
+  PORT: z.coerce.number().int().positive().default(3000),
 });
 
 const parsed = schema.safeParse(process.env);
