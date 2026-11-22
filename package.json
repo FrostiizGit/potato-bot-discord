@@ -1,0 +1,47 @@
+{
+  "name": "potato-bot-discord",
+  "version": "0.1.0",
+  "description": "Private Discord bot: audio playback and RPG mini games",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "tsc",
+    "start": "node --env-file=.env dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "deploy-commands": "tsx --env-file=.env src/deploy-commands.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FrostiizGit/potato-bot-discord.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/FrostiizGit/potato-bot-discord/issues"
+  },
+  "homepage": "https://github.com/FrostiizGit/potato-bot-discord#readme",
+  "private": true,
+  "dependencies": {
+    "@discordjs/opus": "^0.11.0",
+    "@discordjs/voice": "^0.19.2",
+    "discord.js": "^14.28.1",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1",
+    "prism-media": "^1.3.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.2": true,
+    "@discordjs/opus@0.11.0": true
+  }
+}
