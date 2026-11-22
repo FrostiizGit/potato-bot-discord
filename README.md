@@ -8,7 +8,7 @@ Stack: TypeScript, discord.js, `@discordjs/voice`, yt-dlp + ffmpeg, Postgres wit
 
 - Node.js 22+
 - `yt-dlp`, `ffmpeg` and `deno` on your PATH (`brew install yt-dlp ffmpeg deno`). yt-dlp uses deno to solve YouTube's challenges. Keep yt-dlp updated: YouTube breaks old versions.
-- Docker, for Postgres
+- Docker and the Stalagmite CLI, for the local Postgres
 
 ## Setup
 
@@ -19,12 +19,13 @@ Stack: TypeScript, discord.js, `@discordjs/voice`, yt-dlp + ffmpeg, Postgres wit
 ```bash
 cp .env.example .env        # fill in the token, client ID and server ID
 npm install
-docker compose up -d        # Postgres on localhost:5442
+stalagmite db create local potato-local --engine postgres --memory 256
+stalagmite db url local potato-local   # put this in .env as DATABASE_URL
 npm run deploy-commands     # registers slash commands on your server
 npm run dev                 # runs the bot and restarts on file changes
 ```
 
-Database migrations run automatically when the bot starts.
+Database migrations run automatically when the bot starts. `--memory 256` is a cap, not a reservation: an idle Postgres uses about 60 MB. On a server, `stalagmite db create <server> potato-db --engine postgres --memory 256` and `stalagmite db link <server> potato-db <app>` set `DATABASE_URL` for you.
 
 ## Logs
 
