@@ -89,3 +89,25 @@ drizzle/              generated SQL migrations
 ## Accounts
 
 Every user who runs a command gets a row in the `users` table (Discord ID, username, created and last seen times), via `ensureUser` in `src/db/users.ts`. Add RPG data in new tables that reference `users.id`.
+
+## Deploying with Stalagmite
+
+The `Dockerfile` builds the bot with ffmpeg (static build), yt-dlp and deno included. The bot serves `GET /health` on `$PORT` (default 3000): `503` until it's logged in to Discord, then `200`, so a release that can't log in never takes over. Migrations run when the bot starts, so no release command is needed.
+
+First deploy (the domain only serves the health check, but Stalagmite needs one; its DNS must point at the server first):
+
+```bash
+stalagmite db create <server> potato-db --engine postgres --memory 256
+stalagmite app create <server> potato-bot --repo git@github.com:FrostiizGit/potato-bot-discord.git \
+  --domain potato.<your-domain> --port 3000 --health /health
+stalagmite db link <server> potato-db potato-bot          # sets DATABASE_URL
+stalagmite env set <server> potato-bot DISCORD_TOKEN DISCORD_CLIENT_ID DISCORD_GUILD_ID
+stalagmite deploy <server> potato-bot
+stalagmite exec <server> potato-bot -- node dist/deploy-commands.js   # register slash commands
+```
+
+Rerun the last command whenever commands are added or changed. Other things to know:
+
+- **yt-dlp updates:** each build fetches the checksum file of the latest yt-dlp release and downloads yt-dlp again when it changed. If YouTube playback breaks, redeploy to pick up a fix.
+- **During a deploy** the old and new bot run side by side for about 3 seconds, so a command sent right then may get two replies. The music queue lives in memory and is cleared by a deploy.
+- **One token, one bot:** with the same token locally and on the server, both answer every command. Stop the local bot, or use a second Discord application for development.

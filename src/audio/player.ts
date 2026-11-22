@@ -22,6 +22,11 @@ export interface Track extends TrackInfo {
 
 /** Leave the voice channel after this long with nothing playing. */
 const IDLE_TIMEOUT_MS = 5 * 60_000;
+/**
+ * Give up on a track that hasn't produced audio after this long (e.g. a download stuck in yt-dlp's
+ * retries) and move on, instead of sitting silent until someone runs /skip. Covers YouTube's start delay.
+ */
+export const START_TIMEOUT_MS = 30_000;
 export const DEFAULT_VOLUME = 100;
 export const MAX_VOLUME = 150;
 
@@ -41,6 +46,7 @@ export class GuildPlayer {
   private stream: AudioStream | undefined;
   private requestedAt = 0;
   private idleTimer: NodeJS.Timeout | undefined;
+  private startTimer: NodeJS.Timeout | undefined;
   private destroyed = false;
   /** Bumped on every playNext, so a slow lookup that finishes after a skip doesn't start the old track. */
   private playToken = 0;
@@ -56,6 +62,7 @@ export class GuildPlayer {
     connection.subscribe(this.audio);
 
     this.audio.on(AudioPlayerStatus.Playing, (old) => {
+      clearTimeout(this.startTimer);
       if (old.status === AudioPlayerStatus.Buffering && this.current) {
         this.log.info(`Started "${this.current.title}" after ${Date.now() - this.requestedAt} ms`);
       }
@@ -157,6 +164,7 @@ export class GuildPlayer {
     this.destroyed = true;
     players.delete(this.guildId);
     clearTimeout(this.idleTimer);
+    clearTimeout(this.startTimer);
     this.queue.length = 0;
     this.current = undefined;
     this.stream?.kill();
@@ -172,6 +180,7 @@ export class GuildPlayer {
     this.stream = undefined;
     this.resource = undefined;
     clearTimeout(this.idleTimer);
+    clearTimeout(this.startTimer);
 
     const track = this.queue.shift();
     this.current = track;
@@ -201,6 +210,13 @@ export class GuildPlayer {
     this.resource = createAudioResource(this.stream.stream, { inputType: StreamType.Raw, inlineVolume: true });
     this.resource.volume?.setVolume(this.volume / 100);
     this.audio.play(this.resource);
+    this.startTimer = setTimeout(() => {
+      if (token !== this.playToken || this.destroyed || this.audio.state.status !== AudioPlayerStatus.Buffering) return;
+      this.log.warn(`"${track.title}" produced no audio after ${START_TIMEOUT_MS / 1000} s, skipping`);
+      this.textChannel?.send(`Skipped **${track.title}**: it didn't start (the source may be unavailable right now).`).catch(() => {});
+      this.current = undefined; // So Idle doesn't log it as finished.
+      this.audio.stop(true); // Idle -> playNext
+    }, START_TIMEOUT_MS);
 
     if (announce) this.announce(track);
     this.prefetchNext();
